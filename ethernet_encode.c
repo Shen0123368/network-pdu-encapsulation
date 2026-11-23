@@ -10,6 +10,7 @@ enum {
     ETHERNET_MAX_FRAME_LEN = 1518,
     /* 去掉首部和 FCS 之后，数据区至少要补到 46 字节才能凑满 64 字节最小帧。 */
     ETHERNET_MIN_PAYLOAD_LEN = ETHERNET_MIN_FRAME_LEN - ETHERNET_HEADER_LEN - ETHERNET_FCS_LEN,
+    ETHERNET_MAX_PAYLOAD_LEN = ETHERNET_MAX_FRAME_LEN - ETHERNET_HEADER_LEN - ETHERNET_FCS_LEN,
     ETHER_TYPE_IPV4 = 0x0800
 };
 
@@ -21,14 +22,14 @@ int ethernet_encode(ByteView ip, const PacketConfig *config,
         return -1;
     }
 
-    size_t payload_len = ip.len < ETHERNET_MIN_PAYLOAD_LEN ? ETHERNET_MIN_PAYLOAD_LEN : ip.len;
-    size_t frame_len = ETHERNET_HEADER_LEN + payload_len + ETHERNET_FCS_LEN;
-
-    if (frame_len > ETHERNET_MAX_FRAME_LEN) {
-        fprintf(stderr, "Ethernet II 封装失败：帧长 %zu 字节，超过 1518 字节上限。\n",
-                frame_len);
+    if (ip.len > ETHERNET_MAX_PAYLOAD_LEN) {
+        fprintf(stderr, "Ethernet II 封装失败：IPv4 数据报长 %zu 字节，超过以太网数据区上限 %d 字节。\n",
+                ip.len, ETHERNET_MAX_PAYLOAD_LEN);
         return -1;
     }
+
+    size_t payload_len = ip.len < ETHERNET_MIN_PAYLOAD_LEN ? ETHERNET_MIN_PAYLOAD_LEN : ip.len;
+    size_t frame_len = ETHERNET_HEADER_LEN + payload_len + ETHERNET_FCS_LEN;
 
     if (capacity < frame_len) {
         fputs("Ethernet II 封装失败：输出缓冲区容量不足。\n", stderr);

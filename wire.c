@@ -55,7 +55,8 @@ uint16_t wire_checksum(ByteView bytes)
 
 /* UDP 校验和覆盖伪首部、UDP 首部和数据。
  * 伪首部为源 IP、目的 IP、一个零字节、协议号 17 和 UDP 长度，共 12 字节。
- * 调用时 UDP 长度字段必须已经写好，校验和字段按约定先置零。 */
+ * 生成校验和时将校验和字段置零。验证时保留原字段，计算结果为 0 表示通过。
+ */
 uint16_t wire_udp_checksum(ByteView udp, const uint8_t src_ip[4],
                            const uint8_t dst_ip[4])
 {

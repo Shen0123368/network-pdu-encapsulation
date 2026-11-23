@@ -99,7 +99,7 @@ typedef struct { ByteView udp; uint8_t src_ip[4], dst_ip[4]; } Ipv4View;  /* IPv
 | 首部校验和 | 按 Internet 校验和计算，只覆盖 20 字节首部 |
 | 源 / 目的地址 | `PacketConfig` 中的地址 |
 
-解封装依次核对版本号、IHL、总长度与可用字节、首部校验和、分片标志和协议号，
+解封装依次核对版本号、IHL、总长度与可用字节、首部校验和、保留位、分片标志和协议号，
 再用 `总长度 - IHL` 划定 UDP 范围，**把以太网填充排除在外**。
 
 ### 4.3 Ethernet II 帧
@@ -119,10 +119,14 @@ FCS 计算；接收端按 IPv4 的 `总长度` 丢弃填充，因此填充不影
 
 ## 5. 构建与运行
 
+源文件按 UTF-8 保存。建议同时开启 `-Wconversion -Werror`，避免字段赋值时的隐式截断。
+
 ```bash
-gcc -std=c17 -Wall -Wextra -Wpedantic -O2 -o pdu_demo \
+gcc -std=c11 -Wall -Wextra -Wpedantic -Wconversion -Werror \
+    -finput-charset=UTF-8 -fexec-charset=UTF-8 \
     wire.c udp_encode.c ipv4_encode.c ethernet_encode.c \
-    ethernet_decode.c ipv4_decode.c udp_decode.c main.c
+    ethernet_decode.c ipv4_decode.c udp_decode.c main.c \
+    -o pdu_demo
 
 ./pdu_demo                     # 默认消息 "Hello, UDP!"
 ./pdu_demo "任意一段消息"       # 最长 1472 字节（1500 MTU − 20 − 8）
@@ -158,14 +162,18 @@ Ethernet II（帧长 64 字节）
 IPv4（首部 20 字节，总长度 39 字节）
   版本       4
   首部长度   20 字节（IHL=5，可选字段 0 字节）
+  DSCP       0（区分服务代码点）
+  ECN        0（显式拥塞通知）
   总长度     39 字节（数据区 19 字节）
   标识       0x0000
-  标志位     DF=1 MF=0，片偏移 0
-  TTL        64
+  标志位     保留位=0，DF（禁止分片）=1，MF（后续分片）=0
+  片偏移     0（每单位 8 字节）
+  TTL        64（剩余生存时间）
   协议号     17（UDP）
   首部校验和 0x4E8F（校验通过）
   源 IP      192.0.2.1
   目的 IP    198.51.100.2
+  以太网填充 7 字节（IPv4 总长度之外）
   交给 UDP   19 字节
 UDP（首部固定为 8 字节）
   源端口     12345
@@ -207,9 +215,10 @@ UDP（首部固定为 8 字节）
 | --- | --- | --- |
 | UDP 封装 | 输出容量 | `UDP 封装失败：输出缓冲区容量不足。` |
 | IPv4 封装 | UDP 长度字段与实参不符 | `IPv4 封装失败：UDP 长度无效。` |
-| Ethernet 封装 | 帧长上限 | `Ethernet II 封装失败：帧长 1519 字节，超过 1518 字节上限。` |
+| Ethernet 封装 | IPv4 数据报超出数据区上限 | `Ethernet II 封装失败：IPv4 数据报长 1501 字节，超过以太网数据区上限 1500 字节。` |
 | Ethernet 解封装 | FCS | `Ethernet II 解封装失败：FCS 为 0x…，计算值为 0x…。` |
 | IPv4 解封装 | 首部校验和 | `IPv4 解封装失败：首部校验和 0x4F8F 验证失败。` |
+| IPv4 解封装 | 标志位保留位 | `IPv4 解封装失败：标志位中的保留位应为 0。` |
 | UDP 解封装 | 长度字段 | `UDP 解封装失败：长度字段为 17733，IPv4 数据区有 40 字节。` |
 
 ## 9. 已知限制
