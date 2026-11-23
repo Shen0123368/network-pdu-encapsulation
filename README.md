@@ -18,4 +18,14 @@
 - C 源代码与头文件。
 - PDF 运行结果报告，包含程序结构、两人分工、封装和解封装的实际运行输出、测试结果。
 
-当前是协作起点，A、B 待两人认领。接口和测试预期见文档，源代码及运行结果由后续分支提交。
+## 编译与运行
+
+在仓库根目录用 GCC 编译并运行。源文件按 UTF-8 保存。
+
+```powershell
+gcc -std=c11 -Wall -Wextra -Wpedantic -Wconversion -Werror -finput-charset=UTF-8 -fexec-charset=UTF-8 main.c udp_encode.c udp_decode.c ipv4_encode.c ipv4_decode.c ethernet_encode.c ethernet_decode.c wire.c -o pdu-demo.exe
+.\pdu-demo.exe
+.\pdu-demo.exe "0123456789abcdefghijklmnopqrstuv"
+```
+
+默认消息为 `Hello, UDP!`。也可通过一个命令行参数传入消息，最长为 1472 字节。运行时会显示各层长度、完整帧十六进制、解析字段、三层校验和还原消息。

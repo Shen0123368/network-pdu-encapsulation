@@ -6,6 +6,7 @@
 enum {
     IPV4_MIN_HEADER_LEN = 20,
     IPV4_UDP_PROTOCOL = 17,
+    IPV4_FLAG_RESERVED = 0x8000,
     IPV4_FLAG_DONT_FRAGMENT = 0x4000,
     IPV4_FLAG_MORE_FRAGMENTS = 0x2000,
     IPV4_FRAGMENT_OFFSET_MASK = 0x1FFF
@@ -65,6 +66,10 @@ int ipv4_decode(ByteView ip_with_padding, Ipv4View *ip)
     }
 
     uint16_t flags_and_offset = wire_read_be16(bytes + 6);
+    if ((flags_and_offset & IPV4_FLAG_RESERVED) != 0) {
+        fputs("IPv4 解封装失败：标志位中的保留位应为 0。\n", stderr);
+        return -1;
+    }
     if ((flags_and_offset & IPV4_FLAG_MORE_FRAGMENTS) != 0 ||
         (flags_and_offset & IPV4_FRAGMENT_OFFSET_MASK) != 0) {
         fputs("IPv4 解封装失败：本演示只处理未分片的数据报。\n", stderr);
@@ -86,19 +91,24 @@ int ipv4_decode(ByteView ip_with_padding, Ipv4View *ip)
     printf("  版本       %u\n", version);
     printf("  首部长度   %zu 字节（IHL=%u，可选字段 %zu 字节）\n",
            header_len, (unsigned)(header_len / 4), header_len - IPV4_MIN_HEADER_LEN);
+    printf("  DSCP       %u（区分服务代码点）\n", (unsigned)bytes[1] >> 2);
+    printf("  ECN        %u（显式拥塞通知）\n", (unsigned)bytes[1] & 0x03u);
     printf("  总长度     %u 字节（数据区 %zu 字节）\n",
            (unsigned)total_len, ip->udp.len);
     printf("  标识       0x%04X\n", (unsigned)wire_read_be16(bytes + 4));
-    printf("  标志位     DF=%u MF=%u，片偏移 %u\n",
-           (flags_and_offset & IPV4_FLAG_DONT_FRAGMENT) != 0,
-           (flags_and_offset & IPV4_FLAG_MORE_FRAGMENTS) != 0,
+    printf("  标志位     保留位=0，DF（禁止分片）=%u，MF（后续分片）=%u\n",
+           (unsigned)((flags_and_offset & IPV4_FLAG_DONT_FRAGMENT) != 0),
+           (unsigned)((flags_and_offset & IPV4_FLAG_MORE_FRAGMENTS) != 0));
+    printf("  片偏移     %u（每单位 8 字节）\n",
            (unsigned)(flags_and_offset & IPV4_FRAGMENT_OFFSET_MASK));
-    printf("  TTL        %u\n", (unsigned)bytes[8]);
+    printf("  TTL        %u（剩余生存时间）\n", (unsigned)bytes[8]);
     printf("  协议号     %u（UDP）\n", (unsigned)bytes[9]);
     printf("  首部校验和 0x%04X（校验通过）\n",
            (unsigned)wire_read_be16(bytes + 10));
     print_address("源 IP    ", ip->src_ip);
     print_address("目的 IP  ", ip->dst_ip);
+    printf("  以太网填充 %zu 字节（IPv4 总长度之外）\n",
+           ip_with_padding.len - total_len);
     printf("  交给 UDP   %zu 字节\n", ip->udp.len);
     return 0;
 }
